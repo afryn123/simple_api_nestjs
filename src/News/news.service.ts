@@ -19,7 +19,6 @@ export class NewsService {
   }
 
   async createNews(body: any): Promise<any> {
-    console.log(body)
     try {
       await this.prismaService.post.create({
         data: { ...body }

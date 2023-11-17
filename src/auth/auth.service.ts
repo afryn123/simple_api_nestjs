@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Injectable } from '@nestjs/common'
+import { BadRequestException, ConflictException, Injectable, Logger } from '@nestjs/common'
 import { PrismaService } from '../prisma/prisma.service'
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library'
 import { JwtService } from '@nestjs/jwt'
@@ -14,6 +14,7 @@ export class AuthService {
     private readonly config: ConfigService
   ) {}
 
+  private readonly logger = new Logger('AuthService')
   private readonly salt: string = genSaltSync(10)
 
   async register(body: Register) {
@@ -29,6 +30,7 @@ export class AuthService {
       }
     } catch (err) {
       if (err instanceof PrismaClientKnownRequestError && err.code === 'P2002') {
+        this.logger.error(`${err.meta.target[0]} already in use`)
         throw new ConflictException('Email already in use')
       }
       throw err
@@ -66,6 +68,39 @@ export class AuthService {
       }
     }catch (err) {
       throw  new BadRequestException('Bad Request')
+    }
+  }
+
+  async chageProfile(payload: any) {
+    try{
+      const user = await this.prismaService.user.findUnique({ where: { email: payload.old_email } })
+      if (!user) {
+        throw new BadRequestException('Invalid credentials')
+      }
+      const hashedPassword = hashSync(payload.password, this.salt)
+
+      const data = {
+        email: payload.email, 
+        name: payload.name, 
+        password: hashedPassword
+      }
+
+      await this.prismaService.user.update({
+        where: { email: payload.old_email },
+        data: data 
+      })
+
+      return {
+        statusCode: 201,
+        message: 'Success Update Profile',
+        data: [] 
+      }
+    }catch (err) {
+      if (err instanceof PrismaClientKnownRequestError && err.code === 'P2002') {
+        this.logger.error(`${err.meta.target[0]} already in use`)
+        throw new ConflictException('Email already in use')
+      }
+      throw err
     }
   }
 
